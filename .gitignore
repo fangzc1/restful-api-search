@@ -1,0 +1,21 @@
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+.intellijPlatform/
+
+# IntelliJ IDEA
+out/
+*.iml
+.idea/workspace.xml
+.idea/shelf/
+.idea/dataSources/
+.idea/dataSources.local.xml
+.idea/queries/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Kotlin
+*.class

@@ -1,0 +1,36 @@
+<idea-plugin>
+    <id>com.github.restfulapisearch</id>
+    <name>RESTful API Search</name>
+    <vendor>Fangzc</vendor>
+    <description><![CDATA[
+        Search and navigate Spring REST API endpoints in your project.<br/>
+        Use Ctrl+\ (Cmd+\ on Mac) to open the search popup.
+    ]]></description>
+
+    <depends>com.intellij.modules.platform</depends>
+    <depends>com.intellij.java</depends>
+
+    <actions>
+        <action
+            id="RestfulApiSearch.SearchEndpoint"
+            class="com.github.restfulapisearch.action.SearchApiEndpointAction"
+            text="Search REST API Endpoints"
+            description="Search and navigate to Spring REST API endpoints in the project"
+            icon="/icons/api_search.svg">
+
+            <!-- 添加到导航菜单 -->
+            <add-to-group group-id="GoToMenu" anchor="last"/>
+
+            <!-- 默认快捷键 Ctrl+\ -->
+            <keyboard-shortcut
+                keymap="$default"
+                first-keystroke="control BACK_SLASH"/>
+
+            <!-- Mac 快捷键 Cmd+\ -->
+            <keyboard-shortcut
+                keymap="Mac OS X 10.5+"
+                first-keystroke="meta BACK_SLASH"
+                replace-all="true"/>
+        </action>
+    </actions>
+</idea-plugin>
