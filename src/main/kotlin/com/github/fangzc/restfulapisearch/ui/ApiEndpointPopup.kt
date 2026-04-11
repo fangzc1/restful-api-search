@@ -6,6 +6,7 @@ import com.github.restfulapisearch.scanner.SpringApiScanner
 import com.github.restfulapisearch.util.SearchMatcher
 import com.intellij.icons.AllIcons
 import com.intellij.ide.DataManager
+
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.DefaultActionGroup
@@ -15,14 +16,13 @@ import com.intellij.openapi.ui.popup.JBPopup
 import com.intellij.openapi.ui.popup.JBPopupFactory
 import com.intellij.openapi.ui.popup.JBPopupListener
 import com.intellij.openapi.ui.popup.LightweightWindowEvent
-import com.intellij.ui.InplaceButton
 import com.intellij.ui.SearchTextField
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBList
 import com.intellij.ui.components.JBScrollPane
-import com.intellij.ui.popup.AbstractPopup
 import com.intellij.util.ui.JBUI
 import java.awt.*
+import java.awt.event.AWTEventListener
 import java.awt.event.KeyEvent
 import java.awt.event.MouseEvent
 import javax.swing.*
@@ -54,11 +54,14 @@ class ApiEndpointPopup(private val project: Project) {
     private lateinit var listModel: DefaultListModel<ApiEndpoint>
     private lateinit var searchField: SearchTextField
     private lateinit var cellRenderer: ApiEndpointCellRenderer
-    private lateinit var pinButton: InplaceButton
-    private lateinit var filterButton: InplaceButton
+    private lateinit var pinButton: JButton
+    private lateinit var filterButton: JButton
 
     /** 所有端点（完整列表，用于过滤） */
     private var allEndpoints: List<ApiEndpoint> = emptyList()
+
+    /** 历史弹窗点击拦截器（需在弹窗关闭时移除，防止内存泄漏） */
+    private var historyAwtListener: AWTEventListener? = null
 
     /**
      * 扫描端点并显示搜索弹窗
@@ -78,13 +81,19 @@ class ApiEndpointPopup(private val project: Project) {
             .setRequestFocus(true)
             .setMinSize(Dimension(700, 450))
             .setCancelOnClickOutside(!pinned)
+            .setCancelOnWindowDeactivation(false) // 防止历史弹窗（独立窗口）获焦时父弹窗因窗口失活而关闭
             .setCancelKeyEnabled(false) // 自己处理 Esc
+            .setMayBeParent(true) // 允许子弹窗（如搜索历史）出现时不关闭本弹窗
             .createPopup()
 
-        // 弹窗关闭时保存状态
+        // 弹窗关闭时保存状态，并清理 AWTEventListener
         popup.addListener(object : JBPopupListener {
             override fun onClosed(event: LightweightWindowEvent) {
                 lastSearchQuery = searchField.text.trim()
+                historyAwtListener?.let {
+                    Toolkit.getDefaultToolkit().removeAWTEventListener(it)
+                    historyAwtListener = null
+                }
             }
         })
 
@@ -141,6 +150,8 @@ class ApiEndpointPopup(private val project: Project) {
         setupSearchListener()
         setupKeyboardNavigation()
         setupMouseNavigation()
+        // 安装 AWTEventListener 拦截放大镜区域点击，展示历史弹窗
+        installHistoryClickInterceptor()
 
         // 恢复上次搜索文本
         if (lastSearchQuery.isNotEmpty()) {
@@ -170,17 +181,28 @@ class ApiEndpointPopup(private val project: Project) {
         val rightPanel = JPanel(FlowLayout(FlowLayout.RIGHT, 4, 0))
         rightPanel.isOpaque = false
 
-        filterButton = InplaceButton("Filter by HTTP Method", AllIcons.General.Filter) {
-            showMethodFilterPopup()
+        filterButton = JButton(AllIcons.General.Filter).also {
+            it.isOpaque = false
+            it.isContentAreaFilled = false
+            it.isBorderPainted = false
+            it.isFocusPainted = false
+            it.margin = Insets(0, 0, 0, 0)
+            it.preferredSize = JBUI.size(22, 22)
+            it.toolTipText = "Filter by HTTP Method"
+            it.addActionListener { showMethodFilterPopup() }
         }
         rightPanel.add(filterButton)
 
         val pinIcon = if (pinned) AllIcons.General.PinSelected else AllIcons.General.Pin_tab
-        pinButton = InplaceButton(
-            if (pinned) "Unpin popup" else "Pin popup",
-            pinIcon
-        ) {
-            togglePin()
+        pinButton = JButton(pinIcon).also {
+            it.isOpaque = false
+            it.isContentAreaFilled = false
+            it.isBorderPainted = false
+            it.isFocusPainted = false
+            it.margin = Insets(0, 0, 0, 0)
+            it.preferredSize = JBUI.size(22, 22)
+            it.toolTipText = if (pinned) "Unpin popup" else "Pin popup"
+            it.addActionListener { togglePin() }
         }
         updatePinButton()
         rightPanel.add(pinButton)
@@ -221,13 +243,12 @@ class ApiEndpointPopup(private val project: Project) {
     }
 
     /**
-     * 切换 Pin 状态（无需重建弹窗）
+     * 切换 Pin 状态
+     * 注意：pin 状态变化在弹窗下次打开时生效（避免使用内部 API AbstractPopup.setCancelOnClickOutside）
      */
     private fun togglePin() {
         pinned = !pinned
         updatePinButton()
-        // 通过 AbstractPopup 动态修改 cancelOnClickOutside
-        (popup as? AbstractPopup)?.setCancelOnClickOutside(!pinned)
     }
 
     /**
@@ -235,8 +256,7 @@ class ApiEndpointPopup(private val project: Project) {
      */
     private fun updatePinButton() {
         if (::pinButton.isInitialized) {
-            val icon = if (pinned) AllIcons.General.PinSelected else AllIcons.General.Pin_tab
-            pinButton.setIcons(icon, icon, icon)
+            pinButton.icon = if (pinned) AllIcons.General.PinSelected else AllIcons.General.Pin_tab
             pinButton.toolTipText = if (pinned) "Unpin popup" else "Pin popup"
         }
     }
@@ -340,6 +360,55 @@ class ApiEndpointPopup(private val project: Project) {
                 }
             }
         })
+    }
+
+    /**
+     * 安装 AWTEventListener 拦截放大镜图标区域的鼠标点击。
+     *
+     * 背景：SearchTextField 的放大镜不是独立的 AbstractButton，而是在 processMouseEvent()
+     * 中检测 x < JBUIScale.scale(28) 的点击区域（与 IntelliJ 内部实现保持一致）。
+     * 直接 addMouseListener 无法先于 SearchTextField 自身的 processMouseEvent() 运行，
+     * 因此使用 AWTEventListener（在组件事件分发之前执行）来拦截并消费该点击事件，
+     * 替换为通过 JBPopupFactory 创建的正规子弹窗，确保父弹窗不会异常关闭。
+     */
+    private fun installHistoryClickInterceptor() {
+        val editor = searchField.textEditor
+        historyAwtListener = AWTEventListener { event ->
+            if (event !is MouseEvent) return@AWTEventListener
+            if (event.id != MouseEvent.MOUSE_PRESSED) return@AWTEventListener
+            if (event.source !== editor) return@AWTEventListener
+            // 放大镜图标占据文本框左侧约 28px（与 IntelliJ 内部实现一致）
+            if (event.x < JBUI.scale(28)) {
+                event.consume()
+                SwingUtilities.invokeLater { showSearchHistoryPopup() }
+            }
+        }
+        Toolkit.getDefaultToolkit().addAWTEventListener(historyAwtListener, AWTEvent.MOUSE_EVENT_MASK)
+    }
+
+    /**
+     * 通过 JBPopupFactory 显示历史记录弹窗。
+     * 使用 createPopupChooserBuilder 可确保弹窗被正确注册为父弹窗的子弹窗。
+     *
+     * 注意：SearchTextField 内部通过 PropertiesComponent.setValue() 以换行分隔字符串的形式存储历史，
+     * 而非 setList()/getList()（后者使用数组存储，两者不兼容）。
+     * 因此必须通过 searchField.history 读取内部模型数据，而不是直接访问 PropertiesComponent。
+     */
+    private fun showSearchHistoryPopup() {
+        val history = searchField.history
+            .filter { it.isNotBlank() }
+            .distinct()
+
+        if (history.isEmpty()) return
+
+        JBPopupFactory.getInstance()
+            .createPopupChooserBuilder(history)
+            .setItemChosenCallback { chosen ->
+                searchField.text = chosen
+                filterEndpoints()
+            }
+            .createPopup()
+            .showUnderneathOf(searchField)
     }
 
     /**

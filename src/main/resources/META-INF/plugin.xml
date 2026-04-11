@@ -3,8 +3,22 @@
     <name>RESTful API Search</name>
     <vendor>Fangzc</vendor>
     <description><![CDATA[
-        Search and navigate Spring REST API endpoints in your project.<br/>
-        Use Ctrl+\ (Cmd+\ on Mac) to open the search popup.
+        <h3>RESTful API Search</h3>
+        <p>Quickly search and navigate to Spring REST API endpoints in your project.<br/>
+        快速搜索并跳转到 Spring 项目中的 REST API 端点。</p>
+
+        <h4>✨ Features / 功能特性</h4>
+        <ul>
+          <li><b>Quick Launch / 一键呼出</b> — <code>Ctrl+\</code> (macOS: <code>Cmd+\</code>) or <b>Navigate → Search REST API Endpoints</b></li>
+          <li><b>Real-time Search / 实时搜索</b> — Filter by URL path, HTTP method, or class/method name</li>
+          <li><b>Segment Matching / 分段匹配</b> — Space-separated multi-keyword AND logic with continuous substring matching</li>
+          <li><b>HTTP Method Filter / 方法过滤</b> — Toolbar buttons to filter GET / POST / PUT / DELETE / PATCH / HEAD / OPTIONS</li>
+          <li><b>Color-coded Methods / 彩色标签</b> — Each HTTP method shown in a distinct color</li>
+          <li><b>Navigate to Source / 一键跳转</b> — Press <code>Enter</code> or double-click to jump to source code</li>
+          <li><b>Pin Popup / 固定弹窗</b> — Keep the popup open for multiple queries</li>
+          <li><b>Search History / 搜索历史</b> — Cycle through previous searches with <code>Alt+↑</code> / <code>Alt+↓</code></li>
+          <li><b>Annotation Support / 注解支持</b> — Auto-detects <code>@RestController</code>, <code>@Controller</code> and all Mapping annotations</li>
+        </ul>
     ]]></description>
 
     <depends>com.intellij.modules.platform</depends>

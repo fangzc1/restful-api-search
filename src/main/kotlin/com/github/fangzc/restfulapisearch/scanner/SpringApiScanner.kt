@@ -3,7 +3,7 @@ package com.github.restfulapisearch.scanner
 import com.github.restfulapisearch.model.ApiEndpoint
 import com.github.restfulapisearch.model.HttpMethod
 import com.github.restfulapisearch.util.PathUtils
-import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.application.runReadAction
 import com.intellij.openapi.project.Project
 import com.intellij.psi.*
 import com.intellij.psi.search.GlobalSearchScope
@@ -38,7 +38,7 @@ object SpringApiScanner {
      * 扫描项目中所有 Spring REST API 端点
      */
     fun scanProject(project: Project): List<ApiEndpoint> {
-        return ReadAction.compute<List<ApiEndpoint>, Throwable> {
+        return runReadAction {
             val javaPsiFacade = JavaPsiFacade.getInstance(project)
             val projectScope = GlobalSearchScope.projectScope(project)
             val allScope = GlobalSearchScope.allScope(project)
@@ -47,7 +47,8 @@ object SpringApiScanner {
             // 遍历 @Controller 和 @RestController 注解标注的类
             for (controllerAnnotation in CONTROLLER_ANNOTATIONS) {
                 val annotationClass = javaPsiFacade.findClass(controllerAnnotation, allScope) ?: continue
-                val controllerClasses = AnnotatedElementsSearch.searchPsiClasses(annotationClass, projectScope)
+                // 使用 findAll() 替代 iterator()，避免 Query.iterator() 即将移除的 API
+                val controllerClasses = AnnotatedElementsSearch.searchPsiClasses(annotationClass, projectScope).findAll()
                 for (psiClass in controllerClasses) {
                     endpoints.addAll(scanClass(psiClass, allScope))
                 }
