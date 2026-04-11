@@ -3,7 +3,8 @@ package com.github.restfulapisearch.scanner
 import com.github.restfulapisearch.model.ApiEndpoint
 import com.github.restfulapisearch.model.HttpMethod
 import com.github.restfulapisearch.util.PathUtils
-import com.intellij.openapi.application.runReadAction
+import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.util.ThrowableComputable
 import com.intellij.openapi.project.Project
 import com.intellij.psi.*
 import com.intellij.psi.search.GlobalSearchScope
@@ -38,7 +39,7 @@ object SpringApiScanner {
      * 扫描项目中所有 Spring REST API 端点
      */
     fun scanProject(project: Project): List<ApiEndpoint> {
-        return runReadAction {
+        return ApplicationManager.getApplication().runReadAction(ThrowableComputable<List<ApiEndpoint>, Throwable> {
             val javaPsiFacade = JavaPsiFacade.getInstance(project)
             val projectScope = GlobalSearchScope.projectScope(project)
             val allScope = GlobalSearchScope.allScope(project)
@@ -55,7 +56,7 @@ object SpringApiScanner {
             }
 
             endpoints.sortedBy { it.path }
-        }
+        })
     }
 
     /**
