@@ -19,6 +19,8 @@
           <li><b>Search History / 搜索历史</b> — Cycle through previous searches with <code>Alt+↑</code> / <code>Alt+↓</code></li>
           <li><b>Annotation Support / 注解支持</b> — Auto-detects <code>@RestController</code>, <code>@Controller</code> and all Mapping annotations</li>
         </ul>
+
+        <p>🔗 <a href="https://github.com/fangzc1/restful-api-search">GitHub</a> | <a href="https://github.com/fangzc1/restful-api-search/issues">Feedback / 问题反馈</a></p>
     ]]></description>
 
     <depends>com.intellij.modules.platform</depends>
