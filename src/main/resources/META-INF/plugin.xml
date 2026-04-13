@@ -4,20 +4,37 @@
     <vendor>Fangzc</vendor>
     <description><![CDATA[
         <h3>RESTful API Search</h3>
-        <p>Quickly search and navigate to Spring REST API endpoints in your project.<br/>
-        快速搜索并跳转到 Spring 项目中的 REST API 端点。</p>
+        <p>Quickly search and navigate to Spring REST API endpoints in your project.</p>
 
-        <h4>✨ Features / 功能特性</h4>
+        <h4>✨ Features</h4>
         <ul>
-          <li><b>Quick Launch / 一键呼出</b> — <code>Ctrl+\</code> (macOS: <code>Cmd+\</code>) or <b>Navigate → Search REST API Endpoints</b></li>
-          <li><b>Real-time Search / 实时搜索</b> — Filter by URL path, HTTP method, or class/method name</li>
-          <li><b>Segment Matching / 分段匹配</b> — Space-separated multi-keyword AND logic with continuous substring matching</li>
-          <li><b>HTTP Method Filter / 方法过滤</b> — Toolbar buttons to filter GET / POST / PUT / DELETE / PATCH / HEAD / OPTIONS</li>
-          <li><b>Color-coded Methods / 彩色标签</b> — Each HTTP method shown in a distinct color</li>
-          <li><b>Navigate to Source / 一键跳转</b> — Press <code>Enter</code> or double-click to jump to source code</li>
-          <li><b>Pin Popup / 固定弹窗</b> — Keep the popup open for multiple queries</li>
-          <li><b>Search History / 搜索历史</b> — Cycle through previous searches with <code>Alt+↑</code> / <code>Alt+↓</code></li>
-          <li><b>Annotation Support / 注解支持</b> — Auto-detects <code>@RestController</code>, <code>@Controller</code> and all Mapping annotations</li>
+          <li><b>Quick Launch</b> — <code>Ctrl+\</code> (macOS: <code>Cmd+\</code>) or <b>Navigate → Search REST API Endpoints</b></li>
+          <li><b>Real-time Search</b> — Filter by URL path, HTTP method, or class/method name</li>
+          <li><b>Segment Matching</b> — Space-separated multi-keyword AND logic with continuous substring matching</li>
+          <li><b>HTTP Method Filter</b> — Toolbar buttons to filter GET / POST / PUT / DELETE / PATCH / HEAD / OPTIONS</li>
+          <li><b>Color-coded Methods</b> — Each HTTP method shown in a distinct color</li>
+          <li><b>Navigate to Source</b> — Press <code>Enter</code> or double-click to jump to source code</li>
+          <li><b>Pin Popup</b> — Keep the popup open for multiple queries</li>
+          <li><b>Search History</b> — Cycle through previous searches with <code>Alt+↑</code> / <code>Alt+↓</code></li>
+          <li><b>Annotation Support</b> — Auto-detects <code>@RestController</code>, <code>@Controller</code> and all Mapping annotations</li>
+        </ul>
+
+        <hr/>
+
+        <h3>RESTful API 搜索</h3>
+        <p>快速搜索并跳转到 Spring 项目中的 REST API 端点。</p>
+
+        <h4>✨ 功能特性</h4>
+        <ul>
+          <li><b>一键呼出</b> — <code>Ctrl+\</code>（macOS: <code>Cmd+\</code>）或 <b>Navigate → Search REST API Endpoints</b></li>
+          <li><b>实时搜索</b> — 按 URL 路径、HTTP 方法或类名/方法名过滤</li>
+          <li><b>分段匹配</b> — 空格分隔的多关键词 AND 逻辑，支持连续子串匹配</li>
+          <li><b>方法过滤</b> — 工具栏按钮过滤 GET / POST / PUT / DELETE / PATCH / HEAD / OPTIONS</li>
+          <li><b>彩色标签</b> — 每个 HTTP 方法以不同颜色显示</li>
+          <li><b>一键跳转</b> — 按 <code>Enter</code> 或双击跳转到源代码</li>
+          <li><b>固定弹窗</b> — 保持弹窗打开以便多次查询</li>
+          <li><b>搜索历史</b> — 使用 <code>Alt+↑</code> / <code>Alt+↓</code> 切换历史搜索</li>
+          <li><b>注解支持</b> — 自动检测 <code>@RestController</code>、<code>@Controller</code> 及所有 Mapping 注解</li>
         </ul>
 
         <p>🔗 <a href="https://github.com/fangzc1/restful-api-search">GitHub</a> | <a href="https://github.com/fangzc1/restful-api-search/issues">Feedback / 问题反馈</a></p>
