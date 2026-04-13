@@ -36,8 +36,6 @@
           <li><b>搜索历史</b> — 使用 <code>Alt+↑</code> / <code>Alt+↓</code> 切换历史搜索</li>
           <li><b>注解支持</b> — 自动检测 <code>@RestController</code>、<code>@Controller</code> 及所有 Mapping 注解</li>
         </ul>
-
-        <p>🔗 <a href="https://github.com/fangzc1/restful-api-search">GitHub</a> | <a href="https://github.com/fangzc1/restful-api-search/issues">Feedback / 问题反馈</a></p>
     ]]></description>
 
     <depends>com.intellij.modules.platform</depends>
