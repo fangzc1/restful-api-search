@@ -14,6 +14,7 @@ import com.intellij.openapi.actionSystem.ToggleAction
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.popup.JBPopup
 import com.intellij.openapi.ui.popup.JBPopupFactory
+import com.intellij.openapi.wm.WindowManager
 import com.intellij.openapi.ui.popup.JBPopupListener
 import com.intellij.openapi.ui.popup.LightweightWindowEvent
 import com.intellij.ui.SearchTextField
@@ -97,7 +98,14 @@ class ApiEndpointPopup(private val project: Project) {
             }
         })
 
-        popup.showCenteredInCurrentWindow(project)
+        // 通过 WindowManager 获取 IDE 主窗口，确保弹窗每次都精确居中
+        // showCenteredInCurrentWindow 依赖焦点窗口，快捷键触发时焦点不稳定，导致位置偏移
+        val ideFrame = WindowManager.getInstance().getFrame(project)
+        if (ideFrame != null) {
+            popup.showInCenterOf(ideFrame.rootPane)
+        } else {
+            popup.showCenteredInCurrentWindow(project)
+        }
     }
 
     /**
