@@ -98,11 +98,17 @@ class ApiEndpointPopup(private val project: Project) {
             }
         })
 
-        // 通过 WindowManager 获取 IDE 主窗口，确保弹窗每次都精确居中
-        // showCenteredInCurrentWindow 依赖焦点窗口，快捷键触发时焦点不稳定，导致位置偏移
+        // 通过 WindowManager 获取 IDE 主窗口，手动计算绝对坐标居中显示
+        // showInCenterOf 依赖组件可见区域，rootPane 仅代表编辑器内容区，导致偏向编辑器中央
+        // 直接用 JFrame bounds 计算弹窗左上角坐标，确保相对整个 IDE 窗口（含工具栏/工具窗口）居中
         val ideFrame = WindowManager.getInstance().getFrame(project)
         if (ideFrame != null) {
-            popup.showInCenterOf(ideFrame.rootPane)
+            val popupSize = Dimension(700, 450)
+            val fx = ideFrame.locationOnScreen.x
+            val fy = ideFrame.locationOnScreen.y
+            val x = fx + (ideFrame.width - popupSize.width) / 2
+            val y = fy + (ideFrame.height - popupSize.height) / 2
+            popup.show(com.intellij.ui.awt.RelativePoint(Point(x, y)))
         } else {
             popup.showCenteredInCurrentWindow(project)
         }
