@@ -13,8 +13,7 @@ data class ApiEndpoint(
     val psiMethod: PsiMethod     // PSI 元素引用，用于导航跳转
 ) {
     /** 展示用的位置文本，如 "DemoController#getPostJson" */
-    val locationText: String
-        get() = "$className#$methodName"
+    val locationText: String = "$className#$methodName"
 
     /** 用于搜索匹配的组合文本（小写） */
     val searchableText: String by lazy {

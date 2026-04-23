@@ -46,8 +46,8 @@ class ApiEndpointCellRenderer : com.intellij.ui.ColoredListCellRenderer<ApiEndpo
     ) {
         if (value == null) return
 
-        // HTTP 方法图标
-        icon = HttpMethodIcon(value.httpMethod)
+        // HTTP 方法图标（使用枚举级别缓存，避免每次渲染 new 对象）
+        icon = value.httpMethod.icon
 
         // 路径文本（带搜索关键字高亮）
         val pathPositions = SearchMatcher.findMatchPositions(value.path, searchQuery)

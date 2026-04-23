@@ -10,13 +10,15 @@ package com.github.restfulapisearch.util
  */
 object SearchMatcher {
 
+    private val WHITESPACE_REGEX = "\\s+".toRegex()
+
     /**
      * 判断文本是否匹配查询（空格分词，AND 逻辑）
      */
     fun matches(text: String, query: String): Boolean {
         if (query.isBlank()) return true
         val lowerText = text.lowercase()
-        val tokens = query.lowercase().split("\\s+".toRegex()).filter { it.isNotEmpty() }
+        val tokens = query.lowercase().split(WHITESPACE_REGEX).filter { it.isNotEmpty() }
         return tokens.all { token -> matchesToken(lowerText, token) }
     }
 
@@ -26,7 +28,7 @@ object SearchMatcher {
     fun findMatchPositions(text: String, query: String): Set<Int> {
         if (query.isBlank()) return emptySet()
         val lowerText = text.lowercase()
-        val tokens = query.lowercase().split("\\s+".toRegex()).filter { it.isNotEmpty() }
+        val tokens = query.lowercase().split(WHITESPACE_REGEX).filter { it.isNotEmpty() }
         val positions = mutableSetOf<Int>()
         for (token in tokens) {
             positions.addAll(findTokenPositions(lowerText, token))
