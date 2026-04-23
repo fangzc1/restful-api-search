@@ -1,8 +1,8 @@
 package com.github.restfulapisearch.ui
 
 import com.github.restfulapisearch.model.ApiEndpoint
+import com.github.restfulapisearch.model.FilteredEndpoint
 import com.github.restfulapisearch.model.HttpMethod
-import com.github.restfulapisearch.util.SearchMatcher
 import com.intellij.ui.ColoredListCellRenderer
 import com.intellij.ui.JBColor
 import com.intellij.ui.SimpleTextAttributes
@@ -15,55 +15,34 @@ import javax.swing.JList
 /**
  * API 端点列表单元格渲染器
  * 展示格式：[HTTP方法图标] 路径 (类名#方法名)
- * 支持搜索关键字高亮
+ * 直接使用 FilteredEndpoint.matchPositions，不在渲染时重复计算匹配位置。
  */
-class ApiEndpointCellRenderer : com.intellij.ui.ColoredListCellRenderer<ApiEndpoint>() {
-
-    /** 当前搜索关键字，由 Popup 在过滤时更新 */
-    var searchQuery: String = ""
+class ApiEndpointCellRenderer : ColoredListCellRenderer<FilteredEndpoint>() {
 
     companion object {
-        // 路径文本样式
         private val PATH_NORMAL = SimpleTextAttributes.REGULAR_BOLD_ATTRIBUTES
-
-        // 匹配高亮样式：使用 STYLE_SEARCH_MATCH，由 SimpleColoredComponent 内置的
-        // UIUtil.drawSearchMatch() 在第二轮渲染中绘制高亮背景，选中/未选中状态均可正确显示
         private val PATH_HIGHLIGHT = SimpleTextAttributes(
             null, null, null,
             SimpleTextAttributes.STYLE_BOLD or SimpleTextAttributes.STYLE_SEARCH_MATCH
         )
-
-        // 位置文本样式（灰色）
         private val LOCATION_NORMAL = SimpleTextAttributes(SimpleTextAttributes.STYLE_PLAIN, JBColor.GRAY)
     }
 
     override fun customizeCellRenderer(
-        list: JList<out ApiEndpoint>,
-        value: ApiEndpoint?,
+        list: JList<out FilteredEndpoint>,
+        value: FilteredEndpoint?,
         index: Int,
         selected: Boolean,
         hasFocus: Boolean
     ) {
         if (value == null) return
-
-        // HTTP 方法图标（使用枚举级别缓存，避免每次渲染 new 对象）
-        icon = value.httpMethod.icon
-
-        // 路径文本（带搜索关键字高亮）
-        val pathPositions = SearchMatcher.findMatchPositions(value.path, searchQuery)
-        appendHighlighted(value.path, pathPositions, PATH_HIGHLIGHT, PATH_NORMAL)
-
-        // 间隔
+        // 使用枚举级别缓存的图标，避免每次渲染 new 对象
+        icon = value.endpoint.httpMethod.icon
+        appendHighlighted(value.endpoint.path, value.matchPositions, PATH_HIGHLIGHT, PATH_NORMAL)
         append("  ", SimpleTextAttributes.REGULAR_ATTRIBUTES)
-
-        // 类名#方法名（不参与搜索匹配，仅显示）
-        val locText = "(${value.locationText})"
-        append(locText, LOCATION_NORMAL)
+        append("(${value.endpoint.locationText})", LOCATION_NORMAL)
     }
 
-    /**
-     * 将文本按匹配位置分段渲染，匹配部分使用高亮样式
-     */
     private fun appendHighlighted(
         text: String,
         matchPositions: Set<Int>,
@@ -105,12 +84,8 @@ class HttpMethodIcon(private val method: HttpMethod) : Icon {
         try {
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
             g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON)
-
-            // 绘制圆角矩形背景
             g2.color = method.color
             g2.fillRoundRect(x, y, WIDTH, HEIGHT, 4, 4)
-
-            // 绘制白色文字（居中）
             g2.color = Color.WHITE
             g2.font = FONT
             val text = method.displayName
