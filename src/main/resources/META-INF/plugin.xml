@@ -41,6 +41,10 @@
     <depends>com.intellij.modules.platform</depends>
     <depends>com.intellij.java</depends>
 
+    <extensions defaultExtensionNs="com.intellij">
+        <projectService serviceImplementation="com.github.restfulapisearch.cache.ScanCache"/>
+    </extensions>
+
     <actions>
         <action
             id="RestfulApiSearch.SearchEndpoint"
