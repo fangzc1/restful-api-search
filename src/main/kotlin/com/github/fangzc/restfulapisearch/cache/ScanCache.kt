@@ -62,7 +62,7 @@ class ScanCache(private val project: Project) {
         if (scanning) return
         scanning = true
 
-        ReadAction.nonBlocking(Callable { SpringApiScanner.scanProject(project) })
+        ReadAction.nonBlocking(Callable { SpringApiScanner.doScan(project) })
             .inSmartMode(project)
             .finishOnUiThread(ModalityState.defaultModalityState()) { endpoints ->
                 scanning = false
