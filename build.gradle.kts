@@ -39,6 +39,13 @@ intellijPlatform {
             sinceBuild = providers.gradleProperty("pluginSinceBuild")
             untilBuild = provider { null }
         }
+
+        changeNotes = """                                                               
+              <ul>                                                                        
+                <li>修复若干问题</li>
+                <li>优化性能</li>
+              </ul>                                                                       
+          """.trimIndent()
     }
 }
 

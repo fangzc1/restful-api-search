@@ -6,6 +6,7 @@ import com.github.restfulapisearch.model.HttpMethod
 import com.github.restfulapisearch.util.SearchMatcher
 import com.intellij.icons.AllIcons
 import com.intellij.ide.DataManager
+import com.intellij.ide.util.PropertiesComponent
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.DefaultActionGroup
@@ -50,6 +51,14 @@ class ApiEndpointPopup(
         private var selectedMethods: MutableSet<String> = mutableSetOf()
         private var pinned: Boolean = false
         private const val SEARCH_DEBOUNCE_MS = 80
+
+        // 弹窗位置和大小的持久化 key
+        private const val POPUP_X_KEY = "RestfulApiSearch.PopupX"
+        private const val POPUP_Y_KEY = "RestfulApiSearch.PopupY"
+        private const val POPUP_W_KEY = "RestfulApiSearch.PopupWidth"
+        private const val POPUP_H_KEY = "RestfulApiSearch.PopupHeight"
+        private const val DEFAULT_WIDTH = 600
+        private const val DEFAULT_HEIGHT = 450
     }
 
     private lateinit var popup: JBPopup
@@ -63,16 +72,19 @@ class ApiEndpointPopup(
 
     private var allEndpoints: List<ApiEndpoint> = initialEndpoints
     private var historyAwtListener: AWTEventListener? = null
+    // 实时缓存弹窗位置和大小，onClosed 时窗口已销毁，直接读缓存写入持久化
+    private var cachedBounds: Rectangle? = null
 
     fun show() {
         val panel = buildPanel()
+        val props = PropertiesComponent.getInstance()
 
         popup = JBPopupFactory.getInstance()
             .createComponentPopupBuilder(panel, searchField.textEditor)
             .setMovable(true)
             .setResizable(true)
             .setRequestFocus(true)
-            .setMinSize(Dimension(700, 450))
+            .setMinSize(Dimension(400, 300))
             .setCancelOnClickOutside(!pinned)
             .setCancelOnWindowDeactivation(false)
             .setCancelKeyEnabled(false)
@@ -89,17 +101,47 @@ class ApiEndpointPopup(
                     Toolkit.getDefaultToolkit().removeAWTEventListener(it)
                     historyAwtListener = null
                 }
+                // onClosed 时窗口已销毁，使用 ComponentListener 实时更新的缓存
+                cachedBounds?.let { b ->
+                    props.setValue(POPUP_X_KEY, b.x.toString())
+                    props.setValue(POPUP_Y_KEY, b.y.toString())
+                    props.setValue(POPUP_W_KEY, b.width.toString())
+                    props.setValue(POPUP_H_KEY, b.height.toString())
+                }
             }
         })
 
-        val ideFrame = WindowManager.getInstance().getFrame(project)
-        if (ideFrame != null) {
-            val popupSize = Dimension(700, 450)
-            val x = ideFrame.locationOnScreen.x + (ideFrame.width - popupSize.width) / 2
-            val y = ideFrame.locationOnScreen.y + (ideFrame.height - popupSize.height) / 2
-            popup.show(com.intellij.ui.awt.RelativePoint(Point(x, y)))
+        // 读取上次保存的大小，没有则用默认值
+        val savedW = props.getValue(POPUP_W_KEY)?.toIntOrNull() ?: DEFAULT_WIDTH
+        val savedH = props.getValue(POPUP_H_KEY)?.toIntOrNull() ?: DEFAULT_HEIGHT
+        popup.setSize(Dimension(savedW, savedH))
+
+        val savedX = props.getValue(POPUP_X_KEY)?.toIntOrNull()
+        val savedY = props.getValue(POPUP_Y_KEY)?.toIntOrNull()
+
+        if (savedX != null && savedY != null) {
+            popup.show(com.intellij.ui.awt.RelativePoint(Point(savedX, savedY)))
         } else {
-            popup.showCenteredInCurrentWindow(project)
+            val ideFrame = WindowManager.getInstance().getFrame(project)
+            if (ideFrame != null) {
+                val x = ideFrame.locationOnScreen.x + (ideFrame.width - savedW) / 2
+                val y = ideFrame.locationOnScreen.y + (ideFrame.height - savedH) / 2
+                popup.show(com.intellij.ui.awt.RelativePoint(Point(x, y)))
+            } else {
+                popup.showCenteredInCurrentWindow(project)
+            }
+        }
+
+        // popup.show() 之后窗口才存在，安装 ComponentListener 实时同步 bounds 到缓存
+        SwingUtilities.invokeLater {
+            val window = SwingUtilities.getWindowAncestor(panel) ?: return@invokeLater
+            val boundsListener = object : java.awt.event.ComponentAdapter() {
+                override fun componentMoved(e: java.awt.event.ComponentEvent) { cachedBounds = window.bounds }
+                override fun componentResized(e: java.awt.event.ComponentEvent) { cachedBounds = window.bounds }
+            }
+            window.addComponentListener(boundsListener)
+            // 初始化缓存为当前实际 bounds
+            cachedBounds = window.bounds
         }
     }
 
