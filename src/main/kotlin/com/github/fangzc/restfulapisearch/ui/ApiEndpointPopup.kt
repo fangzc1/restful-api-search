@@ -8,12 +8,13 @@ import com.intellij.icons.AllIcons
 import com.intellij.ide.DataManager
 import com.intellij.ide.util.PropertiesComponent
 import com.intellij.ide.util.PsiNavigationSupport
-import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.application.WriteIntentReadAction
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.DefaultActionGroup
 import com.intellij.openapi.actionSystem.ToggleAction
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.Computable
 import com.intellij.pom.Navigatable
 import com.intellij.openapi.ui.popup.JBPopup
 import com.intellij.openapi.ui.popup.JBPopupFactory
@@ -30,7 +31,6 @@ import java.awt.*
 import java.awt.event.AWTEventListener
 import java.awt.event.KeyEvent
 import java.awt.event.MouseEvent
-import java.util.concurrent.Callable
 import javax.swing.*
 import javax.swing.event.DocumentEvent
 import javax.swing.event.DocumentListener
@@ -444,12 +444,12 @@ class ApiEndpointPopup(
      * 避免在 UI 事件里直接读取 PSI 触发线程访问断言。
      */
     private fun createNavigatable(endpoint: ApiEndpoint): Navigatable? {
-        return ReadAction.nonBlocking(Callable<Navigatable?> {
+        return WriteIntentReadAction.compute(Computable {
             val psiMethod = endpoint.psiMethod
-            if (!psiMethod.isValid) return@Callable null
+            if (!psiMethod.isValid) return@Computable null
 
-            val virtualFile = psiMethod.containingFile?.virtualFile ?: return@Callable null
+            val virtualFile = psiMethod.containingFile?.virtualFile ?: return@Computable null
             PsiNavigationSupport.getInstance().createNavigatable(project, virtualFile, psiMethod.textOffset)
-        }).executeSynchronously()
+        })
     }
 }
