@@ -30,6 +30,7 @@ import java.awt.*
 import java.awt.event.AWTEventListener
 import java.awt.event.KeyEvent
 import java.awt.event.MouseEvent
+import java.util.concurrent.Callable
 import javax.swing.*
 import javax.swing.event.DocumentEvent
 import javax.swing.event.DocumentListener
@@ -443,12 +444,12 @@ class ApiEndpointPopup(
      * 避免在 UI 事件里直接读取 PSI 触发线程访问断言。
      */
     private fun createNavigatable(endpoint: ApiEndpoint): Navigatable? {
-        return ReadAction.compute<Navigatable?, RuntimeException> {
+        return ReadAction.nonBlocking(Callable<Navigatable?> {
             val psiMethod = endpoint.psiMethod
-            if (!psiMethod.isValid) return@compute null
+            if (!psiMethod.isValid) return@Callable null
 
-            val virtualFile = psiMethod.containingFile?.virtualFile ?: return@compute null
+            val virtualFile = psiMethod.containingFile?.virtualFile ?: return@Callable null
             PsiNavigationSupport.getInstance().createNavigatable(project, virtualFile, psiMethod.textOffset)
-        }
+        }).executeSynchronously()
     }
 }
