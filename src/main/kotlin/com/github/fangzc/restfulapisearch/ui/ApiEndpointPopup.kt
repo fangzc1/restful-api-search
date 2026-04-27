@@ -7,11 +7,14 @@ import com.github.restfulapisearch.util.SearchMatcher
 import com.intellij.icons.AllIcons
 import com.intellij.ide.DataManager
 import com.intellij.ide.util.PropertiesComponent
+import com.intellij.ide.util.PsiNavigationSupport
+import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.DefaultActionGroup
 import com.intellij.openapi.actionSystem.ToggleAction
 import com.intellij.openapi.project.Project
+import com.intellij.pom.Navigatable
 import com.intellij.openapi.ui.popup.JBPopup
 import com.intellij.openapi.ui.popup.JBPopupFactory
 import com.intellij.openapi.wm.WindowManager
@@ -428,9 +431,24 @@ class ApiEndpointPopup(
 
     private fun navigateToSelected() {
         val selected = endpointList.selectedValue ?: return
+        val navigatable = createNavigatable(selected.endpoint) ?: return
         val query = searchField.text.trim()
         if (query.isNotEmpty()) searchField.addCurrentTextToHistory()
         popup.cancel()
-        selected.endpoint.psiMethod.navigate(true)
+        navigatable.navigate(true)
+    }
+
+    /**
+     * 键盘和鼠标回调都运行在 EDT 上，这里先进入 ReadAction 提取导航信息，
+     * 避免在 UI 事件里直接读取 PSI 触发线程访问断言。
+     */
+    private fun createNavigatable(endpoint: ApiEndpoint): Navigatable? {
+        return ReadAction.compute<Navigatable?, RuntimeException> {
+            val psiMethod = endpoint.psiMethod
+            if (!psiMethod.isValid) return@compute null
+
+            val virtualFile = psiMethod.containingFile?.virtualFile ?: return@compute null
+            PsiNavigationSupport.getInstance().createNavigatable(project, virtualFile, psiMethod.textOffset)
+        }
     }
 }
