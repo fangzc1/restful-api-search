@@ -19,6 +19,8 @@ repositories {
 }
 
 dependencies {
+    testImplementation(kotlin("test"))
+
     intellijPlatform {
         intellijIdeaCommunity(providers.gradleProperty("platformVersion"))
 
@@ -49,7 +51,14 @@ intellijPlatform {
     }
 }
 
+tasks.test {
+    useJUnitPlatform()
+}
+
 // 禁用字节码插桩以兼容非 JetBrains Runtime JDK
 tasks.matching { it.name.contains("nstrumentCode") }.configureEach {
+    enabled = false
+}
+tasks.matching { it.name.contains("instrumentTestCode", ignoreCase = true) }.configureEach {
     enabled = false
 }

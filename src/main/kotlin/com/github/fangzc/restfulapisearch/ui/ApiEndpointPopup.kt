@@ -405,13 +405,30 @@ class ApiEndpointPopup(
                 it.httpMethod.displayName.uppercase() in selectedMethods
             }
         }
-        if (query.isNotEmpty()) {
-            filtered = filtered.filter { SearchMatcher.matches(it.path, query) }
+
+        val ranked = if (query.isNotEmpty()) {
+            filtered.mapNotNull { endpoint ->
+                SearchMatcher.match(endpoint.path, query)?.let { match ->
+                    endpoint to match
+                }
+            }.sortedWith { left, right ->
+                SearchMatcher.comparePathsByRelevance(
+                    left.first.path,
+                    right.first.path,
+                    query,
+                    left.second,
+                    right.second
+                )
+            }
+        } else {
+            filtered.map { endpoint ->
+                endpoint to SearchMatcher.MatchResult(emptySet(), 0, 0, 0, Int.MAX_VALUE)
+            }
         }
 
         val newModel = DefaultListModel<FilteredEndpoint>()
-        newModel.addAll(filtered.map { ep ->
-            FilteredEndpoint(ep, SearchMatcher.findMatchPositions(ep.path, query))
+        newModel.addAll(ranked.map { (endpoint, match) ->
+            FilteredEndpoint(endpoint, match.positions)
         })
         listModel = newModel
         endpointList.model = newModel

@@ -10,51 +10,157 @@ package com.github.restfulapisearch.util
  */
 object SearchMatcher {
 
+    private val PATH_VARIABLE_REGEX = "\\{[^}/]+}".toRegex()
     private val WHITESPACE_REGEX = "\\s+".toRegex()
+
+    data class MatchResult(
+        val positions: Set<Int>,
+        val exactTokenMatches: Int,
+        val totalGap: Int,
+        val totalSpan: Int,
+        val earliestStart: Int
+    )
+
+    private data class TokenMatchResult(
+        val positions: Set<Int>,
+        val exactSubstring: Boolean,
+        val start: Int,
+        val span: Int
+    )
 
     /**
      * 判断文本是否匹配查询（空格分词，AND 逻辑）
      */
     fun matches(text: String, query: String): Boolean {
-        if (query.isBlank()) return true
-        val lowerText = text.lowercase()
-        val tokens = query.lowercase().split(WHITESPACE_REGEX).filter { it.isNotEmpty() }
-        return tokens.all { token -> matchesToken(lowerText, token) }
+        return match(text, query) != null
     }
 
     /**
      * 查找查询在文本中的匹配字符位置（用于高亮渲染）
      */
     fun findMatchPositions(text: String, query: String): Set<Int> {
-        if (query.isBlank()) return emptySet()
-        val lowerText = text.lowercase()
-        val tokens = query.lowercase().split(WHITESPACE_REGEX).filter { it.isNotEmpty() }
-        val positions = mutableSetOf<Int>()
-        for (token in tokens) {
-            positions.addAll(findTokenPositions(lowerText, token))
+        return match(text, query)?.positions ?: emptySet()
+    }
+
+    /**
+     * 计算文本对查询的匹配结果，供过滤、高亮和排序复用。
+     */
+    fun match(text: String, query: String): MatchResult? {
+        return matchPrepared(text.lowercase(), query.lowercase())
+    }
+
+    /**
+     * 按相关度排序：
+     * 1. 更多完整子串命中优先
+     * 2. 匹配跨越的无关字符越少越优先
+     * 3. 整体命中跨度越短越优先
+     * 4. 更早出现的命中优先
+     * 5. 路径更短优先
+     */
+    fun sortByRelevance(paths: List<String>, query: String): List<String> {
+        if (query.isBlank()) return paths
+
+        return paths.sortedWith { left, right ->
+            comparePathsByRelevance(left, right, query)
         }
-        return positions
     }
 
     /**
-     * 单个 token 的匹配判断：先子串，再连续分段
+     * 比较两个路径对查询的相关度。
+     * 先按归一化后的紧凑路径比较，再回退到原始路径比较。
      */
-    private fun matchesToken(lowerText: String, token: String): Boolean {
-        if (lowerText.contains(token)) return true
-        return chunkedMatch(lowerText, token) != null
+    fun comparePathsByRelevance(
+        leftText: String,
+        rightText: String,
+        query: String,
+        leftRawMatch: MatchResult? = match(leftText, query),
+        rightRawMatch: MatchResult? = match(rightText, query)
+    ): Int {
+        val normalizedQuery = normalizeForRanking(query)
+        val leftNormalized = normalizeForRanking(leftText)
+        val rightNormalized = normalizeForRanking(rightText)
+        val normalizedCompare = compareMatchResult(
+            matchPrepared(leftNormalized, normalizedQuery),
+            leftNormalized,
+            matchPrepared(rightNormalized, normalizedQuery),
+            rightNormalized
+        )
+        if (normalizedCompare != 0) return normalizedCompare
+
+        return compareMatchResult(leftRawMatch, leftText, rightRawMatch, rightText)
     }
 
     /**
-     * 查找单个 token 的匹配位置
+     * 比较两个匹配结果的相关度，返回值语义与 Comparator 一致。
      */
-    private fun findTokenPositions(lowerText: String, token: String): Set<Int> {
-        // 优先子串匹配
+    fun compareMatchResult(
+        left: MatchResult?,
+        leftText: String,
+        right: MatchResult?,
+        rightText: String
+    ): Int {
+        if (left == null && right == null) return leftText.compareTo(rightText)
+        if (left == null) return 1
+        if (right == null) return -1
+
+        compareValues(right.exactTokenMatches, left.exactTokenMatches).takeIf { it != 0 }?.let { return it }
+        compareValues(left.totalGap, right.totalGap).takeIf { it != 0 }?.let { return it }
+        compareValues(left.totalSpan, right.totalSpan).takeIf { it != 0 }?.let { return it }
+        compareValues(left.earliestStart, right.earliestStart).takeIf { it != 0 }?.let { return it }
+        compareValues(leftText.length, rightText.length).takeIf { it != 0 }?.let { return it }
+        return leftText.compareTo(rightText)
+    }
+
+    private fun normalizeForRanking(value: String): String {
+        return value.lowercase().replace(PATH_VARIABLE_REGEX, "{}").replace("/", "")
+    }
+
+    private fun matchPrepared(lowerText: String, lowerQuery: String): MatchResult? {
+        if (lowerQuery.isBlank()) return MatchResult(emptySet(), 0, 0, 0, Int.MAX_VALUE)
+        val tokens = lowerQuery.split(WHITESPACE_REGEX).filter { it.isNotEmpty() }
+        if (tokens.isEmpty()) return MatchResult(emptySet(), 0, 0, 0, Int.MAX_VALUE)
+
+        val tokenMatches = tokens.map { token ->
+            matchToken(lowerText, token) ?: return null
+        }
+
+        val positions = buildSet {
+            tokenMatches.forEach { addAll(it.positions) }
+        }
+        val sortedPositions = positions.sorted()
+        val totalSpan = if (sortedPositions.isEmpty()) 0 else sortedPositions.last() - sortedPositions.first() + 1
+
+        return MatchResult(
+            positions = positions,
+            exactTokenMatches = tokenMatches.count { it.exactSubstring },
+            totalGap = tokenMatches.sumOf { it.span - it.positions.size },
+            totalSpan = totalSpan,
+            earliestStart = tokenMatches.minOf { it.start }
+        )
+    }
+
+    /**
+     * 单个 token 的匹配结果：先子串，再连续分段
+     */
+    private fun matchToken(lowerText: String, token: String): TokenMatchResult? {
         val subIdx = lowerText.indexOf(token)
         if (subIdx >= 0) {
-            return (subIdx until subIdx + token.length).toSet()
+            return TokenMatchResult(
+                positions = (subIdx until subIdx + token.length).toSet(),
+                exactSubstring = true,
+                start = subIdx,
+                span = token.length
+            )
         }
-        // 回退连续分段匹配
-        return chunkedMatch(lowerText, token) ?: emptySet()
+
+        val positions = chunkedMatch(lowerText, token) ?: return null
+        val sortedPositions = positions.sorted()
+        return TokenMatchResult(
+            positions = positions,
+            exactSubstring = false,
+            start = sortedPositions.first(),
+            span = sortedPositions.last() - sortedPositions.first() + 1
+        )
     }
 
     /**
