@@ -48,6 +48,12 @@ class ApiEndpointPopup(
     private val project: Project,
     initialEndpoints: List<ApiEndpoint>
 ) {
+    private data class RankedEndpoint(
+        val endpoint: ApiEndpoint,
+        val pathMatch: SearchMatcher.MatchResult?,
+        val searchableMatch: SearchMatcher.MatchResult?,
+        val matchPositions: Set<Int>
+    )
 
     companion object {
         private var lastSearchQuery: String = ""
@@ -397,38 +403,68 @@ class ApiEndpointPopup(
      */
     private fun filterEndpoints() {
         val query = searchField.text.trim()
+        val preparedQuery = query.takeIf { it.isNotEmpty() }?.let(SearchMatcher::prepareQuery)
+        val ranked = ArrayList<RankedEndpoint>(allEndpoints.size)
 
-        var filtered: List<ApiEndpoint> = allEndpoints
-
-        if (selectedMethods.isNotEmpty()) {
-            filtered = filtered.filter {
-                it.httpMethod.displayName.uppercase() in selectedMethods
+        for (endpoint in allEndpoints) {
+            if (selectedMethods.isNotEmpty() && endpoint.httpMethod.displayName.uppercase() !in selectedMethods) {
+                continue
             }
+
+            if (preparedQuery == null) {
+                ranked.add(
+                    RankedEndpoint(
+                        endpoint = endpoint,
+                        pathMatch = null,
+                        searchableMatch = null,
+                        matchPositions = emptySet()
+                    )
+                )
+                continue
+            }
+
+            val visiblePathMatch = SearchMatcher.matchLowercaseText(endpoint.lowercasePath, preparedQuery)
+            val pathMatch = visiblePathMatch ?: SearchMatcher.matchNormalizedPath(endpoint.normalizedPath, preparedQuery)
+            val searchableMatch = pathMatch ?: SearchMatcher.matchLowercaseText(endpoint.searchableText, preparedQuery)
+            if (searchableMatch == null) continue
+
+            ranked.add(
+                RankedEndpoint(
+                    endpoint = endpoint,
+                    pathMatch = pathMatch,
+                    searchableMatch = searchableMatch,
+                    matchPositions = visiblePathMatch?.positions ?: emptySet()
+                )
+            )
         }
 
-        val ranked = if (query.isNotEmpty()) {
-            filtered.mapNotNull { endpoint ->
-                SearchMatcher.match(endpoint.path, query)?.let { match ->
-                    endpoint to match
+        if (preparedQuery != null) {
+            ranked.sortWith { left, right ->
+                when {
+                    left.pathMatch != null && right.pathMatch == null -> -1
+                    left.pathMatch == null && right.pathMatch != null -> 1
+                    left.pathMatch != null && right.pathMatch != null -> SearchMatcher.comparePathsByRelevance(
+                        leftText = left.endpoint.path,
+                        rightText = right.endpoint.path,
+                        preparedQuery = preparedQuery,
+                        leftRawMatch = left.pathMatch,
+                        rightRawMatch = right.pathMatch,
+                        leftNormalized = left.endpoint.normalizedPath,
+                        rightNormalized = right.endpoint.normalizedPath
+                    )
+                    else -> SearchMatcher.compareMatchResult(
+                        left.searchableMatch,
+                        left.endpoint.searchableText,
+                        right.searchableMatch,
+                        right.endpoint.searchableText
+                    )
                 }
-            }.sortedWith { left, right ->
-                SearchMatcher.comparePathsByRelevance(
-                    left.first.path,
-                    right.first.path,
-                    query,
-                    left.second,
-                    right.second
-                )
-            }
-        } else {
-            filtered.map { endpoint ->
-                endpoint to SearchMatcher.MatchResult(emptySet(), 0, 0, 0, Int.MAX_VALUE)
             }
         }
 
         val newModel = DefaultListModel<FilteredEndpoint>()
-        newModel.addAll(ranked.map { (endpoint, match) ->
-            FilteredEndpoint(endpoint, match.positions)
+        newModel.addAll(ranked.map { rankedEndpoint ->
+            FilteredEndpoint(rankedEndpoint.endpoint, rankedEndpoint.matchPositions)
         })
         listModel = newModel
         endpointList.model = newModel

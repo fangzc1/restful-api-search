@@ -13,6 +13,14 @@ object SearchMatcher {
     private val PATH_VARIABLE_REGEX = "\\{[^}/]+}".toRegex()
     private val WHITESPACE_REGEX = "\\s+".toRegex()
 
+    data class PreparedQuery(
+        val rawQuery: String,
+        val lowerQuery: String,
+        val tokens: List<String>,
+        val normalizedQuery: String,
+        val normalizedTokens: List<String>
+    )
+
     data class MatchResult(
         val positions: Set<Int>,
         val exactTokenMatches: Int,
@@ -28,25 +36,66 @@ object SearchMatcher {
         val span: Int
     )
 
+    fun prepareQuery(query: String): PreparedQuery {
+        val lowerQuery = query.lowercase()
+        val normalizedQuery = normalizePathForRanking(query)
+        return PreparedQuery(
+            rawQuery = query,
+            lowerQuery = lowerQuery,
+            tokens = lowerQuery.split(WHITESPACE_REGEX).filter { it.isNotEmpty() },
+            normalizedQuery = normalizedQuery,
+            normalizedTokens = normalizedQuery.split(WHITESPACE_REGEX).filter { it.isNotEmpty() }
+        )
+    }
+
     /**
      * 判断文本是否匹配查询（空格分词，AND 逻辑）
      */
     fun matches(text: String, query: String): Boolean {
-        return match(text, query) != null
+        return match(text, prepareQuery(query)) != null
+    }
+
+    fun matches(text: String, preparedQuery: PreparedQuery): Boolean {
+        return match(text, preparedQuery) != null
     }
 
     /**
      * 查找查询在文本中的匹配字符位置（用于高亮渲染）
      */
     fun findMatchPositions(text: String, query: String): Set<Int> {
-        return match(text, query)?.positions ?: emptySet()
+        return match(text, prepareQuery(query))?.positions ?: emptySet()
+    }
+
+    fun findMatchPositions(text: String, preparedQuery: PreparedQuery): Set<Int> {
+        return match(text, preparedQuery)?.positions ?: emptySet()
     }
 
     /**
      * 计算文本对查询的匹配结果，供过滤、高亮和排序复用。
      */
     fun match(text: String, query: String): MatchResult? {
-        return matchPrepared(text.lowercase(), query.lowercase())
+        return match(text, prepareQuery(query))
+    }
+
+    fun match(text: String, preparedQuery: PreparedQuery): MatchResult? {
+        val lowerText = text.lowercase()
+        return matchLowercaseText(lowerText, preparedQuery)
+            ?: if (' ' !in text) {
+                matchNormalizedPath(normalizePathForRanking(text), preparedQuery)
+            } else {
+                null
+            }
+    }
+
+    /**
+     * 用于已预先 lowercase 的高频文本，避免重复 lowercase 分配。
+     */
+    fun matchLowercaseText(lowerText: String, preparedQuery: PreparedQuery): MatchResult? {
+        return matchPrepared(lowerText, preparedQuery)
+    }
+
+    fun matchNormalizedPath(normalizedText: String, preparedQuery: PreparedQuery): MatchResult? {
+        return matchNormalizedPrepared(normalizedText, preparedQuery)
     }
 
     /**
@@ -59,9 +108,13 @@ object SearchMatcher {
      */
     fun sortByRelevance(paths: List<String>, query: String): List<String> {
         if (query.isBlank()) return paths
+        return sortByRelevance(paths, prepareQuery(query))
+    }
 
+    fun sortByRelevance(paths: List<String>, preparedQuery: PreparedQuery): List<String> {
+        if (preparedQuery.tokens.isEmpty()) return paths
         return paths.sortedWith { left, right ->
-            comparePathsByRelevance(left, right, query)
+            comparePathsByRelevance(left, right, preparedQuery)
         }
     }
 
@@ -76,13 +129,28 @@ object SearchMatcher {
         leftRawMatch: MatchResult? = match(leftText, query),
         rightRawMatch: MatchResult? = match(rightText, query)
     ): Int {
-        val normalizedQuery = normalizeForRanking(query)
-        val leftNormalized = normalizeForRanking(leftText)
-        val rightNormalized = normalizeForRanking(rightText)
+        return comparePathsByRelevance(
+            leftText = leftText,
+            rightText = rightText,
+            preparedQuery = prepareQuery(query),
+            leftRawMatch = leftRawMatch,
+            rightRawMatch = rightRawMatch
+        )
+    }
+
+    fun comparePathsByRelevance(
+        leftText: String,
+        rightText: String,
+        preparedQuery: PreparedQuery,
+        leftRawMatch: MatchResult? = match(leftText, preparedQuery),
+        rightRawMatch: MatchResult? = match(rightText, preparedQuery),
+        leftNormalized: String = normalizePathForRanking(leftText),
+        rightNormalized: String = normalizePathForRanking(rightText)
+    ): Int {
         val normalizedCompare = compareMatchResult(
-            matchPrepared(leftNormalized, normalizedQuery),
+            matchNormalizedPrepared(leftNormalized, preparedQuery),
             leftNormalized,
-            matchPrepared(rightNormalized, normalizedQuery),
+            matchNormalizedPrepared(rightNormalized, preparedQuery),
             rightNormalized
         )
         if (normalizedCompare != 0) return normalizedCompare
@@ -111,17 +179,39 @@ object SearchMatcher {
         return leftText.compareTo(rightText)
     }
 
-    private fun normalizeForRanking(value: String): String {
+    fun normalizePathForRanking(value: String): String {
         return value.lowercase().replace(PATH_VARIABLE_REGEX, "{}").replace("/", "")
     }
 
-    private fun matchPrepared(lowerText: String, lowerQuery: String): MatchResult? {
-        if (lowerQuery.isBlank()) return MatchResult(emptySet(), 0, 0, 0, Int.MAX_VALUE)
-        val tokens = lowerQuery.split(WHITESPACE_REGEX).filter { it.isNotEmpty() }
-        if (tokens.isEmpty()) return MatchResult(emptySet(), 0, 0, 0, Int.MAX_VALUE)
+    private fun matchPrepared(lowerText: String, preparedQuery: PreparedQuery): MatchResult? {
+        if (preparedQuery.lowerQuery.isBlank()) return MatchResult(emptySet(), 0, 0, 0, Int.MAX_VALUE)
+        if (preparedQuery.tokens.isEmpty()) return MatchResult(emptySet(), 0, 0, 0, Int.MAX_VALUE)
 
-        val tokenMatches = tokens.map { token ->
+        val tokenMatches = preparedQuery.tokens.map { token ->
             matchToken(lowerText, token) ?: return null
+        }
+
+        val positions = buildSet {
+            tokenMatches.forEach { addAll(it.positions) }
+        }
+        val sortedPositions = positions.sorted()
+        val totalSpan = if (sortedPositions.isEmpty()) 0 else sortedPositions.last() - sortedPositions.first() + 1
+
+        return MatchResult(
+            positions = positions,
+            exactTokenMatches = tokenMatches.count { it.exactSubstring },
+            totalGap = tokenMatches.sumOf { it.span - it.positions.size },
+            totalSpan = totalSpan,
+            earliestStart = tokenMatches.minOf { it.start }
+        )
+    }
+
+    private fun matchNormalizedPrepared(normalizedText: String, preparedQuery: PreparedQuery): MatchResult? {
+        if (preparedQuery.normalizedQuery.isBlank()) return MatchResult(emptySet(), 0, 0, 0, Int.MAX_VALUE)
+        if (preparedQuery.normalizedTokens.isEmpty()) return MatchResult(emptySet(), 0, 0, 0, Int.MAX_VALUE)
+
+        val tokenMatches = preparedQuery.normalizedTokens.map { token ->
+            matchToken(normalizedText, token) ?: return null
         }
 
         val positions = buildSet {
